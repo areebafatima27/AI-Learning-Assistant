@@ -1,0 +1,27 @@
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import AuthPage from "./components/auth-page";
+import Dashboard from "./components/Dashboard";
+import Summarizar from "./components/summarizar";
+import Chatbot from "./components/chatbot";
+import Quiz from "./components/quiz";
+import Flashcard from "./components/flashcard";
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<AuthPage />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/Summarizar" element={<Summarizar />} /> {/* <-- Add this */}
+        <Route path="/Chatbot" element={<Chatbot />} /> {/* <-- Add this */}
+        <Route path="/Quiz" element={<Quiz />} /> {/* <-- Add this */}
+        <Route path="/Flashcard" element={<Flashcard />} /> {/* <-- Add this */}
+
+
+        {/* Add more routes as needed */}
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
