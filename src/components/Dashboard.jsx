@@ -9,7 +9,6 @@ import {
   CardTitle,
   CardDescription,
 } from "../components/ui/card";
-import { extractTextFromPDF } from "../components/utils/pdfReader";
 import { Button } from "../components/ui/button";
 import {
   FileText,

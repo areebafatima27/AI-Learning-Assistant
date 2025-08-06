@@ -8,14 +8,16 @@ import Flashcard from "./components/flashcard";
 
 function App() {
   return (
+    
+    
     <Router>
       <Routes>
         <Route path="/" element={<AuthPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/Summarizar" element={<Summarizar />} /> {/* <-- Add this */}
-        <Route path="/Chatbot" element={<Chatbot />} /> {/* <-- Add this */}
-        <Route path="/Quiz" element={<Quiz />} /> {/* <-- Add this */}
-        <Route path="/Flashcard" element={<Flashcard />} /> {/* <-- Add this */}
+        <Route path="/Summarizar" element={<Summarizar />} /> 
+        <Route path="/Chatbot" element={<Chatbot />} /> 
+        <Route path="/Quiz" element={<Quiz />} /> 
+        <Route path="/Flashcard" element={<Flashcard />} /> 
 
 
         {/* Add more routes as needed */}

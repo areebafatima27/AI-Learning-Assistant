@@ -1,23 +1,58 @@
-# backend/summarizer.py
 from flask import Flask, request, jsonify
-from transformers import pipeline
 from flask_cors import CORS
+from transformers import pipeline
+import fitz  # PyMuPDF
+import io
 
 app = Flask(__name__)
-CORS(app)  # Allow frontend to talk to this API
+CORS(app)
 
-# Load summarization pipeline (uses free HuggingFace model)
 summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+
+def chunk_text(text, max_tokens=1000):
+    sentences = text.split('. ')
+    chunks = []
+    current_chunk = ""
+    for sentence in sentences:
+        if len(current_chunk) + len(sentence) < max_tokens:
+            current_chunk += sentence + ". "
+        else:
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence + ". "
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    return chunks
 
 @app.route("/api/summarize", methods=["POST"])
 def summarize():
-    data = request.get_json()
-    text = data.get("text", "")
-    if not text:
-        return jsonify({"error": "No text provided"}), 400
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+    
+    file = request.files['file']
+    filename = file.filename
+    file_ext = filename.split('.')[-1].lower()
 
-    summary = summarizer(text, max_length=150, min_length=30, do_sample=False)[0]["summary_text"]
-    return jsonify({"summary": summary})
+    try:
+        if file_ext == "pdf":
+            doc = fitz.open(stream=file.read(), filetype="pdf")
+            text = ""
+            for page in doc:
+                text += page.get_text()
+        elif file_ext == "txt":
+            text = file.read().decode("utf-8")
+        else:
+            return jsonify({"error": "Unsupported file format. Only .pdf and .txt are allowed."}), 400
+    except Exception as e:
+        return jsonify({"error": f"Error reading file: {str(e)}"}), 500
+
+    try:
+        chunks = chunk_text(text)
+        summaries = [summarizer(chunk, max_length=150, min_length=30, do_sample=False)[0]["summary_text"]
+                     for chunk in chunks]
+        full_summary = " ".join(summaries)
+        return jsonify({"summary": full_summary})
+    except Exception as e:
+        return jsonify({"error": f"Summarization failed: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
