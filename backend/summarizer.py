@@ -1,11 +1,10 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+# summarizer.py
+from flask import Blueprint, request, jsonify
 from transformers import pipeline
 import fitz  # PyMuPDF
-import io
 
-app = Flask(__name__)
-CORS(app)
+# Create blueprint instead of full Flask app
+summarizer_bp = Blueprint("summarizer", __name__)
 
 summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 
@@ -23,7 +22,7 @@ def chunk_text(text, max_tokens=1000):
         chunks.append(current_chunk.strip())
     return chunks
 
-@app.route("/api/summarize", methods=["POST"])
+@summarizer_bp.route("/api/summarize", methods=["POST"])
 def summarize():
     if 'file' not in request.files:
         return jsonify({"error": "No file provided"}), 400
@@ -53,6 +52,3 @@ def summarize():
         return jsonify({"summary": full_summary})
     except Exception as e:
         return jsonify({"error": f"Summarization failed: {str(e)}"}), 500
-
-if __name__ == "__main__":
-    app.run(port=5000, debug=True)

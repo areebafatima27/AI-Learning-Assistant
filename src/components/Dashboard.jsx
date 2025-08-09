@@ -20,12 +20,26 @@ import {
   Settings,
   User,
   LogOut,
-} from "../icons";
+  Bell,
+  Moon,
+  Sun,
+  Globe,
+  Shield,
+  HelpCircle,
+  ChevronDown,
+} from "../icons"
 import { useNavigate } from "react-router-dom";
+import { useStatsStore } from "../store";
 
 function Dashboard() {
   const [userName, setUserName] = useState("");
   const [currentTime, setCurrentTime] = useState("");
+  const statsFromStore = useStatsStore((state) => state.stats);
+  const incrementDocuments = useStatsStore((state) => state.incrementDocuments);
+    const [showSettingsMenu, setShowSettingsMenu] = useState(false)
+  const [darkMode, setDarkMode] = useState(false)
+  const [notifications, setNotifications] = useState(true)
+  const [language, setLanguage] = useState("English")
 
   useEffect(() => {
     const auth = getAuth();
@@ -51,6 +65,16 @@ function Dashboard() {
 
     return () => clearInterval(timeInterval);
   }, []);
+
+   useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showSettingsMenu && !event.target.closest(".settings-menu")) {
+        setShowSettingsMenu(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [showSettingsMenu])
 
   const summarizeText = async (text) => {
     if (!text) return "No content to summarize.";
@@ -121,19 +145,79 @@ function Dashboard() {
     },
   ];
 
+    const settingsMenuItems = [
+    {
+      icon: User,
+      label: "Profile Settings",
+      description: "Manage your account and profile",
+      action: () => navigate("/profile"),
+    },
+    {
+      icon: Bell,
+      label: "Notifications",
+      description: "Configure notification preferences",
+      toggle: true,
+      value: notifications,
+      action: () => setNotifications(!notifications),
+    },
+    {
+      icon: darkMode ? Sun : Moon,
+      label: "Theme",
+      description: darkMode ? "Switch to light mode" : "Switch to dark mode",
+      toggle: true,
+      value: darkMode,
+      action: () => setDarkMode(!darkMode),
+    },
+    {
+      icon: Globe,
+      label: "Language",
+      description: `Currently: ${language}`,
+      action: () => {
+        // Toggle between languages for demo
+        setLanguage(language === "English" ? "Spanish" : "English")
+      },
+    },
+    {
+      icon: Shield,
+      label: "Privacy & Security",
+      description: "Manage your privacy settings",
+      action: () => navigate("/privacy"),
+    },
+    {
+      icon: HelpCircle,
+      label: "Help & Support",
+      description: "Get help and contact support",
+      action: () => navigate("/help"),
+    },
+  ]
+
   const stats = [
-    { label: "Documents Processed", value: "0", icon: FileText },
-    { label: "Questions Asked", value: "0", icon: MessageCircle },
-    { label: "Flashcards Created", value: "0", icon: Brain },
-    { label: "Quizzes Completed", value: "0", icon: ClipboardCheck },
+    {
+      label: "Documents Processed",
+      value: statsFromStore.documentsProcessed,
+      icon: FileText,
+    },
+    {
+      label: "Questions Asked",
+      value: statsFromStore.questionsAsked,
+      icon: MessageCircle,
+    },
+    {
+      label: "Flashcards Created",
+      value: statsFromStore.flashcardsCreated,
+      icon: Brain,
+    },
+    {
+      label: "Quizzes Completed",
+      value: statsFromStore.quizzesCompleted,
+      icon: ClipboardCheck,
+    },
   ];
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileContent, setFileContent] = useState("");
   const [summary, setSummary] = useState("");
   const [isSummarizing, setIsSummarizing] = useState(false);
-
-
 
   const handleFileChange = async (event) => {
     const file = event.target.files[0];
@@ -154,7 +238,7 @@ function Dashboard() {
       alert("Only .txt or .pdf files are supported.");
     }
   };
-  return (
+ return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10">
@@ -169,23 +253,90 @@ function Dashboard() {
                 <p className="text-sm text-gray-500">{currentTime}</p>
               </div>
             </div>
-
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm">
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
+              {/* Settings Menu */}
+              <div className="relative settings-menu">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                  className="relative"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
+                  <ChevronDown
+                    className={`w-4 h-4 ml-1 transition-transform duration-200 ${showSettingsMenu ? "rotate-180" : ""}`}
+                  />
+                </Button>
+
+                {/* Settings Dropdown Menu */}
+                {showSettingsMenu && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-900">Settings</h3>
+                      <p className="text-sm text-gray-500">Manage your preferences</p>
+                    </div>
+
+                    <div className="py-2">
+                      {settingsMenuItems.map((item, index) => (
+                        <div
+                          key={index}
+                          className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors duration-200"
+                          onClick={item.action}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                                <item.icon className="w-4 h-4 text-gray-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{item.label}</p>
+                                <p className="text-xs text-gray-500">{item.description}</p>
+                              </div>
+                            </div>
+                            {item.toggle && (
+                              <div
+                                className={`w-10 h-6 rounded-full transition-colors duration-200 ${
+                                  item.value ? "bg-blue-500" : "bg-gray-300"
+                                }`}
+                              >
+                                <div
+                                  className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 mt-1 ${
+                                    item.value ? "translate-x-5" : "translate-x-1"
+                                  }`}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="border-t border-gray-100 pt-2">
+                      <div
+                        className="px-4 py-3 hover:bg-red-50 cursor-pointer transition-colors duration-200"
+                        onClick={handleLogout}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                            <LogOut className="w-4 h-4 text-red-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-red-600">Sign Out</p>
+                            <p className="text-xs text-red-400">Sign out of your account</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                   <User className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-sm font-medium text-gray-700">
-                  {userName}
-                </span>
+                <span className="text-sm font-medium text-gray-700">{userName}</span>
               </div>
             </div>
           </div>
@@ -202,9 +353,7 @@ function Dashboard() {
             </h2>
             <span className="text-3xl">👋</span>
           </div>
-          <p className="text-lg text-gray-600">
-            Ready to supercharge your learning today?
-          </p>
+          <p className="text-lg text-gray-600">Ready to supercharge your learning today?</p>
         </div>
 
         {/* Stats Cards */}
@@ -217,9 +366,7 @@ function Dashboard() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {stat.value}
-                    </p>
+                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
                     <p className="text-sm text-gray-600">{stat.label}</p>
                   </div>
                   <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
@@ -234,12 +381,9 @@ function Dashboard() {
         {/* Feature Cards */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-2xl font-bold text-gray-900">
-              What would you like to do?
-            </h3>
+            <h3 className="text-2xl font-bold text-gray-900">What would you like to do?</h3>
             <TrendingUp className="w-6 h-6 text-gray-400" />
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {features.map((feature, index) => (
               <Card
@@ -251,17 +395,11 @@ function Dashboard() {
                     <div
                       className={`w-12 h-12 ${feature.bgColor} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
                     >
-                      <feature.icon
-                        className={`w-6 h-6 ${feature.textColor}`}
-                      />
+                      <feature.icon className={`w-6 h-6 ${feature.textColor}`} />
                     </div>
                     <div>
-                      <CardTitle className="text-xl text-gray-900">
-                        {feature.title}
-                      </CardTitle>
-                      <CardDescription className="text-gray-600 mt-1">
-                        {feature.description}
-                      </CardDescription>
+                      <CardTitle className="text-xl text-gray-900">{feature.title}</CardTitle>
+                      <CardDescription className="text-gray-600 mt-1">{feature.description}</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
@@ -283,59 +421,17 @@ function Dashboard() {
           <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-2xl font-bold mb-2 p-2">
-                  Ready to get started?
-                </h3>
-                <p className="text-blue-100 mb-4">
-                  Upload your first document and let AI do the magic!
-                </p>
-                <Button
-                  variant="outline"
-                  className="bg-white text-blue-600 border-white hover:bg-blue-50"
-                  onClick={() => document.getElementById("fileInput").click()}
-                >
-                  Upload .txt File
-                </Button>
+                <h3 className="text-2xl font-bold mb-2 p-2">Ready to get started?</h3>
+                <p className="text-blue-100 mb-4">Upload your first document and let AI do the magic!</p>
 
-                <input
-                  id="fileInput"
-                  type="file"
-                  accept=".txt"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+                <input id="fileInput" type="file" accept=".txt, .pdf" onChange={handleFileChange} className="hidden" />
                 {selectedFile && (
                   <div className="mt-4 bg-gray-100 p-4 rounded">
-                    <p className="text-sm font-semibold text-gray-800">
-                      File: {selectedFile.name}
-                    </p>
+                    <p className="text-sm font-semibold text-gray-800">File: {selectedFile.name}</p>
                     <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">
                       {fileContent.substring(0, 500)}
                       {fileContent.length > 500 && "..."}
                     </p>
-
-                    {/* Summarize Button */}
-                    <Button
-                      onClick={async () => {
-                        const s = await summarizeText(fileContent);
-                        setSummary(s);
-                      }}
-                      className="mt-4 bg-blue-500 hover:bg-blue-600 text-white"
-                    >
-                      Summarize Content
-                    </Button>
-
-                    {/* Summary Output */}
-                    {summary && (
-                      <div className="mt-4 p-4 bg-white border rounded shadow-sm">
-                        <p className="text-sm font-semibold text-gray-800 mb-2">
-                          Summary:
-                        </p>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                          {summary}
-                        </p>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -347,8 +443,8 @@ function Dashboard() {
         </Card>
       </main>
     </div>
-  );
+  )
 }
 
-export default Dashboard;
 
+export default Dashboard;
