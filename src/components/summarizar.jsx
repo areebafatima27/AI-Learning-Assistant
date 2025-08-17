@@ -14,11 +14,15 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { useStatsStore } from "../store";
+import { Link } from "react-router-dom";
+import { getAuth } from "firebase/auth";
+// import { doc, updateDoc, setDoc, increment, serverTimestamp } from "firebase/firestore";
+// import { db } from "../../firebaseConfig";
 
 export default function Summarize() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [pastedText, setPastedText] = useState("");
-  const [inputMode, setInputMode] = useState("file"); // "file" or "text"
+  const [inputMode, setInputMode] = useState("file");
   const [isDragOver, setIsDragOver] = useState(false);
   const [error, setError] = useState("");
   const [showSummary, setShowSummary] = useState(false);
@@ -27,10 +31,87 @@ export default function Summarize() {
   const [showNotification, setShowNotification] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Get stats and functions from store
+  const { stats, incrementStat, initializeStats } = useStatsStore();
+
+  // Initialize stats when component mounts and handle auth state changes
+  useEffect(() => {
+    const auth = getAuth();
+    
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        // Initialize stats when user is authenticated
+        await initializeStats();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [initializeStats]);
+
+  // Define animation styles
+  const animationStyles = {
+    floatingOrbStyle: {
+      animation: "floatGentle 16s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+    },
+    floatingOrbDelayedStyle: {
+      animation: "floatGentleDelayed 20s cubic-bezier(0.4, 0, 0.6, 1) infinite 4s"
+    },
+    pulseSubtleStyle: {
+      animation: "pulseSubtle 8s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+    },
+    particleStyle: (particle) => ({
+      animation: `floatParticle ${particle.duration}s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite ${particle.delay}s`
+    })
+  };
+
+  // Define animation style objects for inline styles
+  const fadeUpStyle = {
+    animation: "fadeUp 0.8s cubic-bezier(0.4, 0, 0.6, 1) forwards"
+  };
+
+  const fadeUpDelayedStyle = {
+    animation: "fadeUpDelayed 1s cubic-bezier(0.4, 0, 0.6, 1) forwards 0.2s"
+  };
+
+  const slideInStyle = {
+    animation: "slideInRight 0.6s cubic-bezier(0.4, 0, 0.6, 1) forwards"
+  };
+
+  const bounceGentleStyle = {
+    animation: "bounceGentle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+  };
+
+  const spinElegantStyle = {
+    animation: "spinElegant 3s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+  };
+
+  const progressStyle = {
+    animation: "progressWave 2s cubic-bezier(0.4, 0, 0.6, 1) forwards"
+  };
+
+  const shakeStyle = {
+    animation: "shakeGentle 0.6s cubic-bezier(0.4, 0, 0.6, 1) forwards"
+  };
+
+  const scaleInStyle = {
+    animation: "scaleIn 0.5s cubic-bezier(0.4, 0, 0.6, 1) forwards"
+  };
+
+  const revealUpStyle = {
+    animation: "revealUp 0.8s cubic-bezier(0.4, 0, 0.6, 1) forwards"
+  };
+
+  const sparkleStyle = {
+    animation: "sparkle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+  };
+
+  const spinnerStyle = {
+    animation: "spinner 1s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+  };
+
   const acceptedTypes = [".txt", ".pdf", "text/plain", "application/pdf"];
   const maxFileSize = 10 * 1024 * 1024; // 10MB
   const maxTextLength = 50000; // 50k characters
-  const incrementDocuments = useStatsStore((state) => state.incrementDocuments);
 
   // Floating particles animation
   const [particles, setParticles] = useState([]);
@@ -170,6 +251,23 @@ export default function Summarize() {
     setShowNotification(false);
   };
 
+  // Helper functions for file handling
+  const getFileIcon = (fileName) => {
+    const extension = fileName.split('.').pop().toLowerCase();
+    if (extension === 'pdf') {
+      return <File className="h-8 w-8 text-red-500" />;
+    }
+    return <FileText className="h-8 w-8 text-blue-500" />;
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   const handleSummarize = async () => {
     let isValid = false;
 
@@ -178,14 +276,14 @@ export default function Summarize() {
     } else if (inputMode === "text" && pastedText) {
       isValid = validateText(pastedText);
     } else {
-      setSummaryResult("Please upload a file or enter text to summarize.");
+      setError("Please upload a file or enter text to summarize.");
       return;
     }
 
     if (!isValid) return;
 
     setShowSummary(true);
-    setSummaryResult(""); // Clear previous summary
+    setSummaryResult("");
 
     try {
       let response;
@@ -199,7 +297,7 @@ export default function Summarize() {
           body: formData,
         });
       } else if (inputMode === "text" && pastedText) {
-        response = await fetch("http://localhost:5000/api/summarize-text", {
+        response = await fetch("http://localhost:5000/api/summarize", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -208,111 +306,31 @@ export default function Summarize() {
         });
       }
 
+      if (!response) {
+        throw new Error("No response from server");
+      }
+
       const data = await response.json();
 
-      if (response.ok) {
-        if (!data.summary?.trim()) {
-          setSummaryResult(
-            "The content appears to have no extractable text to summarize."
-          );
-        } else {
-          setSummaryResult(data.summary);
-
-          // ✅ Increment global counter when summary is successful
-          incrementDocuments();
-        }
+      if (response.ok && data.summary?.trim()) {
+        setSummaryResult(data.summary);
+        await incrementStat('documentsProcessed');
+        setShowNotification(true);
       } else {
-        setSummaryResult("Error: " + data.error);
+        throw new Error(data.error || "Failed to summarize document");
       }
     } catch (err) {
-      setSummaryResult("Error summarizing: " + err.message);
+      setError("Error summarizing: " + err.message);
+      setSummaryResult("");
     }
   };
 
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return (
-      Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-    );
-  };
-
-  const getFileIcon = (fileName) => {
-    const extension = fileName.split(".").pop().toLowerCase();
-    return extension === "pdf" ? (
-      <File className="h-8 w-8 text-red-500" />
-    ) : (
-      <FileText className="h-8 w-8 text-blue-500" />
-    );
-  };
-
-  // Animation styles as JSX objects
-  const floatingOrbStyle = {
-    animation: "floatGentle 16s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-  };
-
-  const floatingOrbDelayedStyle = {
-    animation:
-      "floatGentleDelayed 20s cubic-bezier(0.4, 0, 0.6, 1) infinite 4s",
-  };
-
-  const pulseSubtleStyle = {
-    animation: "pulseSubtle 8s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-  };
-
-  const particleStyle = (particle) => ({
-    animation: `floatParticle ${particle.duration}s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite ${particle.delay}s`,
-  });
-
-  const fadeUpStyle = {
-    animation: "fadeUp 1s cubic-bezier(0.16, 1, 0.3, 1)",
-  };
-
-  const fadeUpDelayedStyle = {
-    animation: "fadeUpDelayed 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both",
-  };
-
-  const slideInStyle = {
-    animation: "slideInRight 0.8s cubic-bezier(0.16, 1, 0.3, 1)",
-  };
-
-  const bounceGentleStyle = {
-    animation: "bounceGentle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-  };
-
-  const spinElegantStyle = {
-    animation: "spinElegant 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-  };
-
-  const progressStyle = {
-    animation: "progressWave 2.5s cubic-bezier(0.65, 0, 0.35, 1)",
-  };
-
-  const shakeStyle = {
-    animation: "shakeGentle 0.8s cubic-bezier(0.36, 0.07, 0.19, 0.97)",
-  };
-
-  const scaleInStyle = {
-    animation: "scaleIn 0.9s cubic-bezier(0.16, 1, 0.3, 1)",
-  };
-
-  const revealUpStyle = {
-    animation: "revealUp 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
-  };
-
-  const sparkleStyle = {
-    animation: "sparkle 4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-  };
-
-  const spinnerStyle = {
-    animation: "spinner 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-  };
-
+  // Add stats display to the UI
   return (
     <div className="min-h-screen relative overflow-hidden">
-      
+      <div className="mb-4 text-sm text-gray-600">
+        Documents Processed: {stats.documentsProcessed}
+      </div>
       {/* CSS Keyframes */}
       <style>{`
         @keyframes floatGentle {
@@ -427,15 +445,15 @@ export default function Summarize() {
         {/* Subtle gradient orbs */}
         <div
           className="absolute top-0 left-0 w-96 h-96 bg-gradient-to-br from-blue-100/20 to-indigo-100/20 rounded-full blur-3xl"
-          style={floatingOrbStyle}
+          style={animationStyles.floatingOrbStyle}
         ></div>
         <div
           className="absolute bottom-0 right-0 w-80 h-80 bg-gradient-to-br from-purple-100/15 to-pink-100/15 rounded-full blur-3xl"
-          style={floatingOrbDelayedStyle}
+          style={animationStyles.floatingOrbDelayedStyle}
         ></div>
         <div
           className="absolute top-1/3 right-1/4 w-64 h-64 bg-gradient-to-br from-cyan-100/10 to-blue-100/10 rounded-full blur-3xl"
-          style={pulseSubtleStyle}
+          style={animationStyles.pulseSubtleStyle}
         ></div>
 
         {/* Grid pattern */}
@@ -457,7 +475,7 @@ export default function Summarize() {
               top: `${particle.y}%`,
               width: `${particle.size}px`,
               height: `${particle.size}px`,
-              ...particleStyle(particle),
+              ...animationStyles.particleStyle(particle),
             }}
           />
         ))}
@@ -493,6 +511,17 @@ export default function Summarize() {
       <div className="max-w-2xl mx-auto p-6 space-y-8 relative z-10">
         {/* Header */}
         <div className="text-center space-y-4" style={fadeUpStyle}>
+          <div className="flex justify-end mb-4">
+            <Link to="/dashboard">
+              <Button
+                variant="outline"
+                className="bg-white/70 backdrop-blur-sm border-gray-200/50 hover:bg-white/90 transition-all duration-300 "
+              >
+                Back to Dashboard
+              </Button>
+            </Link>
+          </div>
+
           <div className="inline-flex items-center space-x-2 bg-white/60 backdrop-blur-sm rounded-full px-4 py-2 border border-gray-200/50 shadow-sm">
             <Sparkles className="h-4 w-4 text-blue-600" />
             <span className="text-sm font-medium text-gray-700">

@@ -5,6 +5,7 @@ import Summarizar from "./components/summarizar";
 import Chatbot from "./components/chatbot";
 import Quiz from "./components/quiz";
 import Flashcard from "./components/flashcard";
+import Signup from "./components/signup";
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
       <Routes>
         <Route path="/" element={<AuthPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/signup" element={<Signup />} />
         <Route path="/Summarizar" element={<Summarizar />} /> 
         <Route path="/Chatbot" element={<Chatbot />} /> 
         <Route path="/Quiz" element={<Quiz />} /> 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { signInWithEmailAndPassword } from "firebase/auth"
+import { createUserWithEmailAndPassword } from "firebase/auth"
 import { Link, useNavigate } from "react-router-dom"
 import { auth, signInWithGoogle } from "../../firebaseConfig"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card"
@@ -9,21 +9,28 @@ import { Input } from "../components/ui/input"
 import { Button } from "../components/ui/button"
 import { Label } from "../components/ui/label"
 
-export default function AuthPage() {
+export default function Signup() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState("")
   const navigate = useNavigate()
 
-  const handleLogin = async (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError("")
 
+    if (password !== confirmPassword) {
+      setError("Passwords do not match")
+      setLoading(false)
+      return
+    }
+
     try {
-      await signInWithEmailAndPassword(auth, email, password)
+      await createUserWithEmailAndPassword(auth, email, password)
       navigate("/dashboard")
     } catch (error) {
       setError(error.message)
@@ -52,14 +59,14 @@ export default function AuthPage() {
         <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-8">
             <CardTitle className="text-3xl font-bold text-center bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Welcome Back
+              Join Us Today
             </CardTitle>
             <CardDescription className="text-center text-gray-600 text-base">
-              Sign in to continue to your account
+              Create your account to get started
             </CardDescription>
           </CardHeader>
           <CardContent className="px-8 pb-8">
-            <form onSubmit={handleLogin} className="space-y-6">
+            <form onSubmit={handleSignup} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-semibold text-gray-700">
                   Email Address
@@ -88,6 +95,20 @@ export default function AuthPage() {
                   className="h-12 px-4 border-2 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-sm font-semibold text-gray-700">
+                  Confirm Password
+                </Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="Confirm your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  className="h-12 px-4 border-2 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+                />
+              </div>
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm text-center">
                   {error}
@@ -98,7 +119,7 @@ export default function AuthPage() {
                 className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
                 disabled={loading}
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? "Creating account..." : "Create Account"}
               </Button>
             </form>
 
@@ -136,18 +157,18 @@ export default function AuthPage() {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                   />
                 </svg>
-                {googleLoading ? "Signing in..." : "Sign in with Google"}
+                {googleLoading ? "Signing up..." : "Sign up with Google"}
               </Button>
             </div>
 
             <div className="mt-8 text-center">
               <p className="text-sm text-gray-600">
-                Don't have an account?{" "}
+                Already have an account?{" "}
                 <Link
-                  to="/signup"
+                  to="/"
                   className="font-semibold text-blue-600 hover:text-purple-600 transition-colors duration-200 hover:underline"
                 >
-                  Create one now
+                  Sign in here
                 </Link>
               </p>
             </div>

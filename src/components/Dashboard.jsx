@@ -30,24 +30,50 @@ import {
 } from "../icons"
 import { useNavigate } from "react-router-dom";
 import { useStatsStore } from "../store";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, serverTimestamp } from "firebase/firestore";
 
 function Dashboard() {
   const [userName, setUserName] = useState("");
   const [currentTime, setCurrentTime] = useState("");
   const statsFromStore = useStatsStore((state) => state.stats);
-  const incrementDocuments = useStatsStore((state) => state.incrementDocuments);
-    const [showSettingsMenu, setShowSettingsMenu] = useState(false)
+  const incrementStat = useStatsStore((state) => state.incrementStat);
+  const initializeStats = useStatsStore((state) => state.initializeStats);
+  const refreshStats = useStatsStore((state) => state.refreshStats);
+  const isLoading = useStatsStore((state) => state.isLoading);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
   const [notifications, setNotifications] = useState(true)
   const [language, setLanguage] = useState("English")
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileContent, setFileContent] = useState("");
+  const [summary, setSummary] = useState("");
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
 
-  useEffect(() => {
+  const db = getFirestore();
+  const navigate = useNavigate();
+
+  // Initialize stats when component mounts
+useEffect(() => {
+    const initStats = async () => {
+      await initializeStats();
+    };
+    initStats();
+  }, [initializeStats]);
+
+useEffect(() => {
     const auth = getAuth();
-    const user = auth.currentUser;
+    
+    // Listen for auth state changes
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
     if (user) {
       const name = user.displayName || user.email.split("@")[0];
       setUserName(name);
+        
+        // Initialize stats when user is authenticated
+        await initializeStats();
     }
+    });
 
     // Update time
     const updateTime = () => {
@@ -63,10 +89,13 @@ function Dashboard() {
     updateTime();
     const timeInterval = setInterval(updateTime, 1000);
 
-    return () => clearInterval(timeInterval);
-  }, []);
+    return () => {
+      unsubscribe();
+      clearInterval(timeInterval);
+    };
+  }, [initializeStats]);
 
-   useEffect(() => {
+useEffect(() => {
     const handleClickOutside = (event) => {
       if (showSettingsMenu && !event.target.closest(".settings-menu")) {
         setShowSettingsMenu(false)
@@ -76,12 +105,94 @@ function Dashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [showSettingsMenu])
 
-  const summarizeText = async (text) => {
-    if (!text) return "No content to summarize.";
-    // Replace this mock logic with real API call later
-    const sentences = text.split(". ");
-    const summary = sentences.slice(0, 3).join(". ") + ".";
-    return summary;
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setSelectedFile(file);
+    setShowSummary(false);
+    setSummary("");
+
+    if (file.type === "text/plain") {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setFileContent(e.target.result);
+      };
+      reader.readAsText(file);
+    } else if (file.type === "application/pdf") {
+      // For PDF files, we'll need to extract text
+      // For now, we'll show a message that PDF processing is available in the summarizer
+      setFileContent("PDF file selected. Use the Summarizer tool for full PDF processing.");
+    } else {
+      alert("Only .txt or .pdf files are supported.");
+      setSelectedFile(null);
+      setFileContent("");
+    }
+  };
+
+  const handleSummarize = async () => {
+    if (!selectedFile || !fileContent) {
+      alert("Please select a file first.");
+      return;
+    }
+
+    setIsSummarizing(true);
+    setShowSummary(false);
+
+    try {
+      let response;
+      
+      if (selectedFile.type === "text/plain") {
+        response = await fetch("http://localhost:5000/api/summarize", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ text: fileContent }),
+        });
+      } else if (selectedFile.type === "application/pdf") {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        
+        response = await fetch("http://localhost:5000/api/summarize", {
+          method: "POST",
+          body: formData,
+        });
+      }
+
+      if (response && response.ok) {
+        const data = await response.json();
+        if (data.summary) {
+          setSummary(data.summary);
+          setShowSummary(true);
+          
+          // Increment documents processed count
+          await incrementStat('documentsProcessed');
+          
+          // Show success message
+          alert("Document processed successfully! Document count incremented.");
+        } else {
+          throw new Error("No summary received");
+        }
+      } else {
+        throw new Error("Failed to process document");
+      }
+    } catch (error) {
+      console.error("Error processing document:", error);
+      alert("Error processing document: " + error.message);
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  const clearFile = () => {
+    setSelectedFile(null);
+    setFileContent("");
+    setSummary("");
+    setShowSummary(false);
+    // Reset file input
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput) fileInput.value = '';
   };
 
   const handleLogout = async () => {
@@ -93,7 +204,6 @@ function Dashboard() {
       console.error("Error signing out:", error);
     }
   };
-  const navigate = useNavigate();
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -214,30 +324,6 @@ function Dashboard() {
     },
   ];
 
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [fileContent, setFileContent] = useState("");
-  const [summary, setSummary] = useState("");
-  const [isSummarizing, setIsSummarizing] = useState(false);
-
-  const handleFileChange = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    setSelectedFile(file);
-
-    if (file.type === "text/plain") {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setFileContent(e.target.result);
-      };
-      reader.readAsText(file);
-    } else if (file.type === "application/pdf") {
-      const extractedText = await extractTextFromPDF(file);
-      setFileContent(extractedText);
-    } else {
-      alert("Only .txt or .pdf files are supported.");
-    }
-  };
  return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
       {/* Header */}
@@ -357,7 +443,19 @@ function Dashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-gray-900">Your Progress</h3>
+            <Button
+              onClick={refreshStats}
+              variant="outline"
+              size="sm"
+              className="text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300"
+            >
+              🔄 Refresh Stats
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {stats.map((stat, index) => (
             <Card
               key={index}
@@ -366,7 +464,9 @@ function Dashboard() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {isLoading ? "..." : stat.value}
+                        </p>
                     <p className="text-sm text-gray-600">{stat.label}</p>
                   </div>
                   <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
@@ -376,6 +476,7 @@ function Dashboard() {
               </CardContent>
             </Card>
           ))}
+          </div>
         </div>
 
         {/* Feature Cards */}
@@ -416,26 +517,71 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* Quick Actions - Document Upload */}
         <Card className="bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0 shadow-xl">
           <CardContent className="p-8">
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-2xl font-bold mb-2 p-2">Ready to get started?</h3>
+              <div className="flex-1">
+                <h3 className="text-2xl font-bold mb-2">Ready to get started?</h3>
                 <p className="text-blue-100 mb-4">Upload your first document and let AI do the magic!</p>
 
-                <input id="fileInput" type="file" accept=".txt, .pdf" onChange={handleFileChange} className="hidden" />
-                {selectedFile && (
-                  <div className="mt-4 bg-gray-100 p-4 rounded">
-                    <p className="text-sm font-semibold text-gray-800">File: {selectedFile.name}</p>
-                    <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">
-                      {fileContent.substring(0, 500)}
-                      {fileContent.length > 500 && "..."}
-                    </p>
+                <div className="space-y-4">
+                  <input 
+                    id="fileInput" 
+                    type="file" 
+                    accept=".txt, .pdf" 
+                    onChange={handleFileChange} 
+                    className="hidden" 
+                  />
+                  
+                  {!selectedFile ? (
+                    <Button
+                      onClick={() => document.getElementById('fileInput').click()}
+                      className="bg-white text-blue-600 hover:bg-gray-100 px-6 py-2 rounded-lg font-semibold"
+                    >
+                      Choose File
+                    </Button>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="bg-white/20 p-4 rounded-lg">
+                        <p className="text-sm font-semibold">File: {selectedFile.name}</p>
+                        <p className="text-sm opacity-90 mt-1">
+                          {fileContent.length > 100 
+                            ? `${fileContent.substring(0, 100)}...` 
+                            : fileContent}
+                        </p>
+                      </div>
+                      
+                      <div className="flex space-x-3">
+                        <Button
+                          onClick={handleSummarize}
+                          disabled={isSummarizing}
+                          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold disabled:opacity-50"
+                        >
+                          {isSummarizing ? "Processing..." : "Process Document"}
+                        </Button>
+                        
+                        <Button
+                          onClick={clearFile}
+                          className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-semibold"
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Summary Display */}
+                {showSummary && summary && (
+                  <div className="mt-6 bg-white/20 p-4 rounded-lg">
+                    <h4 className="font-semibold mb-2">Summary:</h4>
+                    <p className="text-sm opacity-90">{summary}</p>
                   </div>
                 )}
               </div>
-              <div className="hidden md:block">
+              
+              <div className="hidden md:block ml-8">
                 <Sparkles className="w-24 h-24 text-blue-200" />
               </div>
             </div>
@@ -445,6 +591,5 @@ function Dashboard() {
     </div>
   )
 }
-
 
 export default Dashboard;

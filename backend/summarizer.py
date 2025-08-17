@@ -3,9 +3,7 @@ from flask import Blueprint, request, jsonify
 from transformers import pipeline
 import fitz  # PyMuPDF
 
-# Create blueprint instead of full Flask app
 summarizer_bp = Blueprint("summarizer", __name__)
-
 summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 
 def chunk_text(text, max_tokens=1000):
@@ -24,30 +22,38 @@ def chunk_text(text, max_tokens=1000):
 
 @summarizer_bp.route("/api/summarize", methods=["POST"])
 def summarize():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file provided"}), 400
-    
-    file = request.files['file']
-    filename = file.filename
-    file_ext = filename.split('.')[-1].lower()
+    text = None
 
-    try:
-        if file_ext == "pdf":
-            doc = fitz.open(stream=file.read(), filetype="pdf")
-            text = ""
-            for page in doc:
-                text += page.get_text()
-        elif file_ext == "txt":
-            text = file.read().decode("utf-8")
-        else:
-            return jsonify({"error": "Unsupported file format. Only .pdf and .txt are allowed."}), 400
-    except Exception as e:
-        return jsonify({"error": f"Error reading file: {str(e)}"}), 500
+    # Case 1: File upload (PDF or TXT)
+    if 'file' in request.files:
+        file = request.files['file']
+        filename = file.filename
+        file_ext = filename.split('.')[-1].lower()
+
+        try:
+            if file_ext == "pdf":
+                doc = fitz.open(stream=file.read(), filetype="pdf")
+                text = "".join(page.get_text() for page in doc)
+            elif file_ext == "txt":
+                text = file.read().decode("utf-8")
+            else:
+                return jsonify({"error": "Unsupported file format. Only .pdf and .txt are allowed."}), 400
+        except Exception as e:
+            return jsonify({"error": f"Error reading file: {str(e)}"}), 500
+
+    # Case 2: Raw text in JSON
+    elif request.is_json and "text" in request.json:
+        text = request.json["text"]
+
+    else:
+        return jsonify({"error": "No file or text provided"}), 400
 
     try:
         chunks = chunk_text(text)
-        summaries = [summarizer(chunk, max_length=150, min_length=30, do_sample=False)[0]["summary_text"]
-                     for chunk in chunks]
+        summaries = [
+            summarizer(chunk, max_length=150, min_length=30, do_sample=False)[0]["summary_text"]
+            for chunk in chunks
+        ]
         full_summary = " ".join(summaries)
         return jsonify({"summary": full_summary})
     except Exception as e:
